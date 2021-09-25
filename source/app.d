@@ -7,12 +7,16 @@ void main()
 {
 }
 
-ubyte[] calculateHMAC(alias hashFunction, int blockSize)(const(ubyte)[] key, const(ubyte)[] message)
+auto calculateHMAC(alias hashFunction, int blockSize)(const(ubyte)[] key, const(ubyte)[] message)
 {
+    // The hash function returns a static array so it needs to be 
+    // stack allocated outside the if scope.
+    typeof(hashFunction(key)) hashTemporary = void;
+
     if (key.length > blockSize)
     {
-        auto key0 = hashFunction(key);
-        key = key0;
+        hashTemporary = hashFunction(key);
+        key = hashTemporary[];
     }
     key.length = blockSize;
     
@@ -21,7 +25,7 @@ ubyte[] calculateHMAC(alias hashFunction, int blockSize)(const(ubyte)[] key, con
     ubyte[blockSize] innerPad = void;
     innerPad[] = key[] ^ 0x36;
 
-    return hashFunction(outerPad ~ hashFunction(innerPad ~ message)).dup;
+    return hashFunction(outerPad ~ hashFunction(innerPad ~ message));
 }
 unittest
 {
