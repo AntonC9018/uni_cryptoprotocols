@@ -3,10 +3,10 @@
 		"Anton"
 	],
 	"copyright": "Copyright © 2021, Anton",
-	"targetPath": "bin",
-	"workingDirectory": "bin",
 	"description": "Cryptographic Protocols",
 	"license": "MIT",
 	"name": "uni_cryptoprotocols",
-	"targetType": "executable"
+	"targetPath": "bin",
+	"targetType": "executable",
+	"workingDirectory": "bin"
 }
