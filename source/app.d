@@ -101,16 +101,16 @@ auto getTagCMAC(int blockSize)(scope BlockCipher!blockSize blockCipher,
     // complete block
     if (message.length && message.length % blockSize == 0)
     {
-        mLast[0..$] = key.k1[] ^ message[$ - blockSize..$];
+        mLast[] = key.k1[] ^ message[($ - blockSize) .. $];
         numIters--;
     }
     // incomplete block
     else
     {
         auto byteCount = message.length % blockSize;
-        mLast[0..byteCount]     = key.k2[0..byteCount] ^ message[$ - byteCount..$];
-        mLast[byteCount]        = key.k2[byteCount] ^ 0x80;
-        mLast[byteCount + 1..$] = key.k2[byteCount + 1..$];
+        mLast[0..byteCount]         = key.k2[0..byteCount] ^ message[($ - byteCount) .. $];
+        mLast[byteCount]            = key.k2[byteCount] ^ 0x80;
+        mLast[(byteCount + 1) .. $] = key.k2[(byteCount + 1) .. $];
     }
     
     size_t messageIndex = 0;
@@ -118,7 +118,7 @@ auto getTagCMAC(int blockSize)(scope BlockCipher!blockSize blockCipher,
 
     foreach (i; 0..numIters)
     {
-        x[] ^= message[messageIndex..messageIndex + blockSize];
+        x[] ^= message[messageIndex .. (messageIndex + blockSize)];
         x = blockCipher(x);
         messageIndex += blockSize;
     }
