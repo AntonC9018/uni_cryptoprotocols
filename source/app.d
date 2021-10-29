@@ -46,10 +46,8 @@ struct KeyCMAC(int blockSize)
 
 template CMAC(alias blockCipher)
 {
-    static if (is(typeof(&blockCipher) : ubyte[_blockSize] delegate(in ubyte[_blockSize]), int _blockSize))
-    {
-        enum blockSize = _blockSize;
-    }
+    static if (!is(typeof(&blockCipher) : ubyte[blockSize] delegate(in ubyte[blockSize]), int blockSize))
+        static assert(0, "`blockCipher` is not a block cipher");
 
     auto getKey()
     {
@@ -57,7 +55,7 @@ template CMAC(alias blockCipher)
             enum ubyte c = 0x1b;
         else static if (blockSize == 16)
             enum ubyte c = 0x87;
-        else static assert(0);
+        else static assert(0, "The size of the block cipher must be 8 or 16");
 
         ubyte[blockSize] zeros = 0;
         auto k0 = blockCipher(zeros);
