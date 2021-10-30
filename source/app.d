@@ -297,7 +297,7 @@ template UMAC(size_t aesBlockLength = 16, size_t aesKeyLength = 128 / 8, size_t 
 
             import std.traits : ReturnType;
             ReturnType!l2Hash B = void;
-            if (message.length <= l1KeySliceLength)
+            if (message.length <= l1KeyLength)
             {
                 B[0 .. A.length] = A[];
                 B[A.length .. $] = 0;
@@ -365,7 +365,7 @@ template UMAC(size_t aesBlockLength = 16, size_t aesKeyLength = 128 / 8, size_t 
         return result;
     }
 
-    ubyte[16] l2Hash(in byte[l2KeyLength] key, const(ubyte)[] message)
+    ulong[2] l2Hash(in byte[l2KeyLength] key, const(ubyte)[] message)
     {
         ulong mask64  = 0x01ffffff01ffffff;
         ulong k64     = (cast(ulong[1]) key[0..8])[0] & mask64;
@@ -383,19 +383,18 @@ template UMAC(size_t aesBlockLength = 16, size_t aesKeyLength = 128 / 8, size_t 
     // But I do not understand wth it even does.
     ulong poly64(ulong current, ulong key, ulong data)
     {
-        ulong key_hi = cast(uint)(key >> 32);
-        ulong key_lo = cast(uint)(key);
-        ulong current_hi = cast(uint)(current >> 32);
-        ulong current_lo = cast(uint)(current);
+        const ulong key_hi = cast(uint)(key >> 32);
+        const ulong key_lo = cast(uint)(key);
+        const ulong current_hi = cast(uint)(current >> 32);
+        const ulong current_lo = cast(uint)(current);
 
-        ulong X = key_hi * current_lo + current_hi * key_lo;
-        ulong x_lo = cast(uint)(X);
-        ulong x_hi = cast(uint)(X >> 32);
+        const ulong X = key_hi * current_lo + current_hi * key_lo;
+        const ulong x_lo = cast(uint)(X);
+        const ulong x_hi = cast(uint)(X >> 32);
 
         const ulong mystery = 59;
-        ulong result = key_hi * current_hi + x_hi;
-        ulong result = result * mystery + key_lo * current_lo;
-        ulong T = x_lo << 32;
+        const ulong T = x_lo << 32;
+        ulong result = (key_hi * current_hi + x_hi) * mystery + key_lo * current_lo;
 
         result += T;
         if (result < T)
