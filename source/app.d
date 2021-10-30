@@ -6,10 +6,6 @@ import std.algorithm;
 import common.util;
 
 
-void main()
-{
-}
-
 auto calculateHMAC(alias hashFunction, int blockSize)(const(ubyte)[] key, const(ubyte)[] message)
 {
     // The hash function returns a static array so it needs to be 
@@ -44,10 +40,18 @@ struct KeyCMAC(int blockSize)
     ubyte[blockSize] k2;
 }
 
+template BlockSize(alias blockCipher)
+{
+    static if (is(typeof(&blockCipher) : ubyte[blockSize] delegate(in ubyte[blockSize]), int blockSize))
+    {
+        enum BlockSize = blockSize;
+    }
+    else static assert(0, "`blockCipher` is not a block cipher");
+}
+
 template CMAC(alias blockCipher)
 {
-    static if (!is(typeof(&blockCipher) : ubyte[blockSize] delegate(in ubyte[blockSize]), int blockSize))
-        static assert(0, "`blockCipher` is not a block cipher");
+    enum blockSize = BlockSize!blockCipher;
 
     auto getKey()
     {
@@ -116,16 +120,10 @@ unittest
     ubyte[keyBitSize/8] key = void;
     fromHexString(key[], "2b7e151628aed2a6abf7158809cf4f3c");
 
-    aes_context ctx;
-    aes_setkey_enc(&ctx, key.ptr, keyBitSize); 
+    AESContext ctx = createEncryptionContext(key[]); 
 
     enum inputSize = 16;
-    auto doAes(in ubyte[inputSize] input)
-    {
-        ubyte[inputSize] output;
-        aes_crypt_ecb(&ctx, false, input.ptr, output.ptr);
-        return output;
-    }
+    auto doAes(in ubyte[inputSize] input) { return ctx.cryptEcb(false, input); }
 
     ubyte[inputSize] zeros = 0;
     assert(doAes(zeros).toHexString!(LetterCase.lower) == "7df76b0c1ab899b33e42f047b91b546f");
@@ -165,4 +163,85 @@ unittest
     ubyte[4] dest = void;
     shiftLeftInto(source[], dest[]);
     assert(dest[] == [0x01, 0x03, 0x11, 0x00]);
+}
+
+
+int endianSwap(int a)
+{
+    return ((a >> 24) & 0x000000ff) 
+        | ((a >> 8) & 0x0000ff00)
+        | ((a << 8) & 0x00ff0000)
+        | ((a << 24) & 0xff000000); 
+}
+unittest
+{
+    assert(endianSwap(0x00000080) == int.min);
+    assert(endianSwap(0x12345678) == 0x78563412);
+}
+
+
+struct UMACPadDerivationFunctionContext(size_t aesBlockLength, size_t aesKeyLength)
+{
+    ubyte[aesBlockLength] previousAesOutput;
+    ubyte[aesBlockLength] nonce;
+    ubyte[aesKeyLength] pseudoradomFunctionKey;
+}
+
+// struct UMAC(size_t aesBlockSize, size_t aesKeyLength)
+// {
+//     ubyte[aesKeyLength] 
+// }
+
+static import aes;
+
+
+template UMAC(alias blockCipher)
+{
+    enum blockSize = BlockSize!blockCipher;
+
+    void getKey(ubyte[] outBuffer, byte streamIndex)
+    {
+        ubyte[blockSize] inBuffer = 0;
+
+        // Setup the initial value
+        inBuffer[$ - 9] = streamIndex;
+        inBuffer[$ - 1] = 1;
+
+        while (outBuffer.length >= blockSize) 
+        {
+            outBuffer[0..blockSize] = blockCipher(inBuffer);
+            outBuffer = outBuffer[blockSize..$];
+            inBuffer[$ - 1]++;
+        }
+        if (outBuffer.length > 0) 
+            outBuffer[] = blockCipher(inBuffer)[0..outBuffer.length];
+    }
+
+    auto padDerivationFunctionContextInit(size_t keyLength)(ubyte[keyLength])
+    {
+        
+    }
+}
+
+
+void main()
+{
+    import aes;
+    import std.stdio;
+
+    enum keyBitSize = 128;
+    enum inputSize = 16;
+
+    ubyte[keyBitSize/8] key = void;
+    AESContext ctx = createEncryptionContext(key[]);
+
+    auto doAes(in ubyte[inputSize] input)
+    {
+        return ctx.cryptEcb(false, input);
+    }
+
+    alias AesUMAC = UMAC!doAes;
+    ubyte[16] processedKey = void;
+    AesUMAC.getKey(processedKey[], 0);
+    writeln(processedKey);
 }

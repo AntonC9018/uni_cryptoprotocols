@@ -1,6 +1,7 @@
 // https://gist.github.com/vladimirgamalyan/959754248985a62ba7bf7af848f1aaaf
 module aes;
 
+private:
 immutable ubyte[256] FSb = [
 	0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5,
 	0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -358,25 +359,28 @@ immutable uint[10] RCON =
 	0x0000001B, 0x00000036
 ];
 
-struct aes_context
+public:
+struct AESContext
 {
 	int nr;
     uint[68] buf;
 }
 
-void aes_setkey_enc(aes_context *ctx, const(ubyte) *key, uint keysize)
+AESContext createEncryptionContext(const(ubyte)[] key)
 {
+	AESContext ctx;
+
 	uint* RK = ctx.buf.ptr;
 
-	for (int i = 0; i < (keysize >> 5); i++)
+	for (int i = 0; i < ((key.length * 8) >> 5); i++)
 		RK[i] = (cast(uint)key[(i << 2)]) 
 			| (cast(uint)key[(i << 2) + 1] << 8) 
 			| (cast(uint)key[(i << 2) + 2] << 16)
 			| (cast(uint)key[(i << 2) + 3] << 24);
 
-	switch (keysize)
+	switch (key.length)
 	{
-		case 128:
+		case 128 / 8:
 			ctx.nr = 10;
 			for (int i = 0; i < 10; i++, RK += 4)
 			{
@@ -392,7 +396,7 @@ void aes_setkey_enc(aes_context *ctx, const(ubyte) *key, uint keysize)
 			}
 			break;
 
-		case 192:
+		case 192 / 8:
 			ctx.nr = 12;
 			for (int i = 0; i < 8; i++, RK += 6)
 			{
@@ -410,7 +414,7 @@ void aes_setkey_enc(aes_context *ctx, const(ubyte) *key, uint keysize)
 			}
 			break;
 
-		case 256:
+		case 256 / 8:
 			ctx.nr = 14;
 			for (int i = 0; i < 7; i++, RK += 8)
 			{
@@ -439,20 +443,21 @@ void aes_setkey_enc(aes_context *ctx, const(ubyte) *key, uint keysize)
 		default:
 			assert(0);
 	}
+	return ctx;
 }
 
-void aes_setkey_dec(aes_context *ctx, const(ubyte) *key, uint keysize)
+AESContext createDecryptionContext(const(ubyte)[] key)
 {
-	switch (keysize)
+	AESContext ctx;
+	switch (key.length)
 	{
-		case 128: ctx.nr = 10; break;
-		case 192: ctx.nr = 12; break;
-		case 256: ctx.nr = 14; break;
+		case 128 / 8: ctx.nr = 10; break;
+		case 192 / 8: ctx.nr = 12; break;
+		case 256 / 8: ctx.nr = 14; break;
 		default: assert(0);
 	}
 
-	aes_context cty;
-	aes_setkey_enc(&cty, key, keysize);
+	AESContext cty = createEncryptionContext(key);
 
 	uint* RK = ctx.buf.ptr;
 	uint* SK = cty.buf.ptr + cty.nr * 4;
@@ -482,12 +487,10 @@ void aes_setkey_dec(aes_context *ctx, const(ubyte) *key, uint keysize)
 
 	cty.nr = 0;
 	cty.buf[] = 0;
+	return ctx;
 }
 
-void aes_crypt_ecb(const aes_context* ctx,
-				  bool decrypt,
-				  const ubyte* input,
-				  ubyte* output)
+ubyte[16] cryptEcb(in AESContext ctx, bool decrypt, in ubyte[16] input)
 {
 	uint Y0;
 	uint Y1;
@@ -584,6 +587,7 @@ void aes_crypt_ecb(const aes_context* ctx,
 			(cast(uint)FSb[(Y2 >> 24) & 0xFF] << 24);
 	}
 
+	ubyte[16] output = void;
 	output[0] = cast(ubyte)(X0 >> 0);
 	output[1] = cast(ubyte)(X0 >> 8);
 	output[2] = cast(ubyte)(X0 >> 16);
@@ -600,4 +604,5 @@ void aes_crypt_ecb(const aes_context* ctx,
 	output[13] = cast(ubyte)(X3 >> 8);
 	output[14] = cast(ubyte)(X3 >> 16); 
 	output[15] = cast(ubyte)(X3 >> 24);
+	return output;
 }
