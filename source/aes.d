@@ -366,19 +366,19 @@ struct AESContext
     uint[68] buf;
 }
 
-AESContext createEncryptionContext(const(ubyte)[] key)
+AESContext createEncryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 {
 	AESContext ctx;
 
 	uint* RK = ctx.buf.ptr;
 
-	for (int i = 0; i < ((key.length * 8) >> 5); i++)
+	for (int i = 0; i < ((keyLength * 8) >> 5); i++)
 		RK[i] = (cast(uint)key[(i << 2)]) 
 			| (cast(uint)key[(i << 2) + 1] << 8) 
 			| (cast(uint)key[(i << 2) + 2] << 16)
 			| (cast(uint)key[(i << 2) + 3] << 24);
 
-	switch (key.length)
+	switch (keyLength)
 	{
 		case 128 / 8:
 			ctx.nr = 10;
@@ -446,7 +446,7 @@ AESContext createEncryptionContext(const(ubyte)[] key)
 	return ctx;
 }
 
-AESContext createDecryptionContext(const(ubyte)[] key)
+AESContext createDecryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 {
 	AESContext ctx;
 	switch (key.length)

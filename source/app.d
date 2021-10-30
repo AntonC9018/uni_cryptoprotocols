@@ -180,46 +180,50 @@ unittest
 }
 
 
-struct UMACPadDerivationFunctionContext(size_t aesBlockLength, size_t aesKeyLength)
-{
-    ubyte[aesBlockLength] previousAesOutput;
-    ubyte[aesBlockLength] nonce;
-    ubyte[aesKeyLength] pseudoradomFunctionKey;
-}
+
 
 // struct UMAC(size_t aesBlockSize, size_t aesKeyLength)
 // {
 //     ubyte[aesKeyLength] 
 // }
 
-static import aes;
 
 
-template UMAC(alias blockCipher)
+
+template UMAC(size_t aesBlockLength, size_t aesKeyLength, size_t umacKeyLength = 8)
 {
-    enum blockSize = BlockSize!blockCipher;
+    import aes;
 
-    void getKey(ubyte[] outBuffer, byte streamIndex)
+    void getKey(ubyte[] outBuffer, in AESContext encryptionContext, byte streamIndex)
     {
-        ubyte[blockSize] inBuffer = 0;
+        ubyte[aesBlockLength] inBuffer = 0;
 
         // Setup the initial value
         inBuffer[$ - 9] = streamIndex;
         inBuffer[$ - 1] = 1;
 
-        while (outBuffer.length >= blockSize) 
+        while (outBuffer.length >= aesBlockLength) 
         {
-            outBuffer[0..blockSize] = blockCipher(inBuffer);
-            outBuffer = outBuffer[blockSize..$];
+            outBuffer[0..aesBlockLength] = encryptEcb(encryptionContext, inBuffer);
+            outBuffer = outBuffer[aesBlockLength..$];
             inBuffer[$ - 1]++;
         }
         if (outBuffer.length > 0) 
-            outBuffer[] = blockCipher(inBuffer)[0..outBuffer.length];
+            outBuffer[] = encryptEcb(encryptionContext, inBuffer)[0..outBuffer.length];
     }
 
-    auto padDerivationFunctionContextInit(size_t keyLength)(ubyte[keyLength])
+    struct PadDerivationContext
     {
-        
+        ubyte[aesBlockLength] previousAesOutput;
+        ubyte[aesBlockLength] nonce;
+        ubyte[aesKeyLength] pseudoradomKey;
+    }
+
+    PadDerivationContext padDerivationContextInit(in AESContext pseudorandomFunctionAesContext)
+    {
+        ubyte[umacKeyLength] buffer;
+        getKey(buffer[], pseudorandomFunctionAesContext, 0);
+        aes.createEncryptionContext(buffer[]);
     }
 }
 
@@ -233,15 +237,15 @@ void main()
     enum inputSize = 16;
 
     ubyte[keyBitSize/8] key = void;
-    AESContext ctx = createEncryptionContext(key[]);
+    AESContext ctx = createEncryptionContext(key);
 
     auto doAes(in ubyte[inputSize] input)
     {
         return ctx.cryptEcb(false, input);
     }
 
-    alias AesUMAC = UMAC!doAes;
-    ubyte[16] processedKey = void;
-    AesUMAC.getKey(processedKey[], 0);
-    writeln(processedKey);
+    // alias AesUMAC = UMAC!doAes;
+    // ubyte[16] processedKey = void;
+    // AesUMAC.getKey(processedKey[], 0);
+    // writeln(processedKey);
 }
