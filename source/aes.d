@@ -510,10 +510,8 @@ ubyte[16] cryptEcb(TContext : AESContext!encrypt, Flag!"encrypt" encrypt)(in TCo
 	uint X3 = (cast(uint)input[12]) | (cast(uint)input[13] << 8) | (cast(uint)input[14] << 16) | (cast(uint)input[15] << 24); 
 	X3 ^= *RK++;
 
-	static if (encrypt)
+	static if (!encrypt)
 	{
-		import std.stdio;
-		writeln("Enrtypting");
 		for (int i = (ctx.nr >> 1) - 1; i > 0; --i)
 		{
 			Y0 = *RK++ ^ RT0[X0 & 0xFF] ^ RT1[(X3 >> 8) & 0xFF] ^ RT2[(X2 >> 16) & 0xFF] ^ RT3[(X1 >> 24) & 0xFF];
