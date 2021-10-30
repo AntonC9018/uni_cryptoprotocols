@@ -120,10 +120,10 @@ unittest
     ubyte[keyBitSize/8] key = void;
     fromHexString(key[], "2b7e151628aed2a6abf7158809cf4f3c");
 
-    AESContext ctx = createEncryptionContext(key[]); 
+    auto ctx = createEncryptionContext(key[]); 
 
     enum inputSize = 16;
-    auto doAes(in ubyte[inputSize] input) { return ctx.cryptEcb(false, input); }
+    auto doAes(in ubyte[inputSize] input) { return cryptEcb(ctx, input[]); }
 
     ubyte[inputSize] zeros = 0;
     assert(doAes(zeros).toHexString!(LetterCase.lower) == "7df76b0c1ab899b33e42f047b91b546f");
@@ -214,16 +214,18 @@ template UMAC(size_t aesBlockLength, size_t aesKeyLength, size_t umacKeyLength =
 
     struct PadDerivationContext
     {
-        ubyte[aesBlockLength] previousAesOutput;
-        ubyte[aesBlockLength] nonce;
-        ubyte[aesKeyLength] pseudoradomKey;
+        ubyte[aesBlockLength] previousAesOutput = void;
+        ubyte[aesBlockLength] nonce = 0;
+        ubyte[aesKeyLength] pseudoradomAesKey = void;
     }
 
     PadDerivationContext padDerivationContextInit(in AESContext pseudorandomFunctionAesContext)
     {
         ubyte[umacKeyLength] buffer;
         getKey(buffer[], pseudorandomFunctionAesContext, 0);
-        aes.createEncryptionContext(buffer[]);
+        PadDerivationContext result;
+        result.pseudoradomAesKey = aes.createEncryptionContext(buffer);
+        result.previousAesOutput = encryptEcb(result.pseudoradomAesKey, false, result.nonce);
     }
 }
 
@@ -237,11 +239,11 @@ void main()
     enum inputSize = 16;
 
     ubyte[keyBitSize/8] key = void;
-    AESContext ctx = createEncryptionContext(key);
+    auto ctx = createEncryptionContext(key);
 
     auto doAes(in ubyte[inputSize] input)
     {
-        return ctx.cryptEcb(false, input);
+        return ctx.cryptEcb(input);
     }
 
     // alias AesUMAC = UMAC!doAes;

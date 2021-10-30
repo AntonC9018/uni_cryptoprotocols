@@ -359,16 +359,18 @@ immutable uint[10] RCON =
 	0x0000001B, 0x00000036
 ];
 
+import std.typecons;
+
 public:
-struct AESContext
+struct AESContext(Flag!"encrypt" encrypt)
 {
 	int nr;
     uint[68] buf;
 }
 
-AESContext createEncryptionContext(size_t keyLength)(in ubyte[keyLength] key)
+AESContext!(Yes.encrypt) createEncryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 {
-	AESContext ctx;
+	AESContext!(Yes.encrypt) ctx;
 
 	uint* RK = ctx.buf.ptr;
 
@@ -446,9 +448,9 @@ AESContext createEncryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 	return ctx;
 }
 
-AESContext createDecryptionContext(size_t keyLength)(in ubyte[keyLength] key)
+AESContext!(No.encrypt) createDecryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 {
-	AESContext ctx;
+	AESContext!(No.encrypt) ctx;
 	switch (key.length)
 	{
 		case 128 / 8: ctx.nr = 10; break;
@@ -457,7 +459,7 @@ AESContext createDecryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 		default: assert(0);
 	}
 
-	AESContext cty = createEncryptionContext(key);
+	AESContext!(Yes.encrypt) cty = createEncryptionContext(key);
 
 	uint* RK = ctx.buf.ptr;
 	uint* SK = cty.buf.ptr + cty.nr * 4;
@@ -490,7 +492,7 @@ AESContext createDecryptionContext(size_t keyLength)(in ubyte[keyLength] key)
 	return ctx;
 }
 
-ubyte[16] cryptEcb(in AESContext ctx, bool decrypt, in ubyte[16] input)
+ubyte[16] cryptEcb(TContext : AESContext!encrypt, Flag!"encrypt" encrypt)(in TContext ctx, in ubyte[16] input)
 {
 	uint Y0;
 	uint Y1;
@@ -508,8 +510,10 @@ ubyte[16] cryptEcb(in AESContext ctx, bool decrypt, in ubyte[16] input)
 	uint X3 = (cast(uint)input[12]) | (cast(uint)input[13] << 8) | (cast(uint)input[14] << 16) | (cast(uint)input[15] << 24); 
 	X3 ^= *RK++;
 
-	if (decrypt)
+	static if (encrypt)
 	{
+		import std.stdio;
+		writeln("Enrtypting");
 		for (int i = (ctx.nr >> 1) - 1; i > 0; --i)
 		{
 			Y0 = *RK++ ^ RT0[X0 & 0xFF] ^ RT1[(X3 >> 8) & 0xFF] ^ RT2[(X2 >> 16) & 0xFF] ^ RT3[(X1 >> 24) & 0xFF];
