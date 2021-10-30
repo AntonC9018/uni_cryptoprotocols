@@ -165,48 +165,30 @@ unittest
     assert(dest[] == [0x01, 0x03, 0x11, 0x00]);
 }
 
-
-int endianSwap(int a)
-{
-    return ((a >> 24) & 0x000000ff) 
-        | ((a >> 8) & 0x0000ff00)
-        | ((a << 8) & 0x00ff0000)
-        | ((a << 24) & 0xff000000); 
-}
-unittest
-{
-    assert(endianSwap(0x00000080) == int.min);
-    assert(endianSwap(0x12345678) == 0x78563412);
-}
-
-
-
-
 // struct UMAC(size_t aesBlockSize, size_t aesKeyLength)
 // {
 //     ubyte[aesKeyLength] 
 // }
 
-
-
-
-template UMAC(size_t aesBlockLength, size_t aesKeyLength, size_t umacKeyLength = 8)
+template UMAC(size_t aesBlockLength = 16, size_t aesKeyLength = 128 / 8, size_t umacTagLength = 8)
 {
     import aes;
+    enum umacKeyLength = 16;
 
-    void getKey(ubyte[] outBuffer, in AESContext encryptionContext, byte streamIndex)
+    void deriveKey(ubyte[] outBuffer, in AESContext encryptionContext, byte streamIndex)
     {
         ubyte[aesBlockLength] inBuffer = 0;
 
-        // Setup the initial value
-        inBuffer[$ - 9] = streamIndex;
-        inBuffer[$ - 1] = 1;
+        enum streamIndexIndex = aesBlockLength - 9;
+        enum counterIndex = aesBlockLength - 1;
+        inBuffer[streamIndexIndex] = streamIndex;
+        inBuffer[counterIndex] = 1;
 
         while (outBuffer.length >= aesBlockLength) 
         {
             outBuffer[0..aesBlockLength] = encryptEcb(encryptionContext, inBuffer);
             outBuffer = outBuffer[aesBlockLength..$];
-            inBuffer[$ - 1]++;
+            inBuffer[counterIndex]++;
         }
         if (outBuffer.length > 0) 
             outBuffer[] = encryptEcb(encryptionContext, inBuffer)[0..outBuffer.length];
@@ -214,18 +196,151 @@ template UMAC(size_t aesBlockLength, size_t aesKeyLength, size_t umacKeyLength =
 
     struct PadDerivationContext
     {
-        ubyte[aesBlockLength] previousAesOutput = void;
+        ubyte[aesBlockLength] cachedAesOutput = void;
         ubyte[aesBlockLength] nonce = 0;
-        ubyte[aesKeyLength] pseudoradomAesKey = void;
+        AESContext!(Yes.encrypt) pseudoradomAesContext = void;
+
+        void recomputeAesOutput()
+        {
+            cachedAesOutput = encryptEcb(pseudoradomAesContext, nonce);
+        }
     }
 
-    PadDerivationContext padDerivationContextInit(in AESContext pseudorandomFunctionAesContext)
+    PadDerivationContext padDerivationContextInit(in AESContext!(Yes.encrypt) pseudorandomFunctionAesContext)
     {
-        ubyte[umacKeyLength] buffer;
-        getKey(buffer[], pseudorandomFunctionAesContext, 0);
+        ubyte[umacKeyLength] pseudorandomKeyBuffer;
+        
+        // Initialization is done by encrypting an (almost) empty string 
+        // with the given key (context).
+        // The result will be used as the key.
+        deriveKey(pseudorandomKeyBuffer[], pseudorandomFunctionAesContext, 0);
+
         PadDerivationContext result;
-        result.pseudoradomAesKey = aes.createEncryptionContext(buffer);
-        result.previousAesOutput = encryptEcb(result.pseudoradomAesKey, false, result.nonce);
+        result.pseudoradomAesContext = aes.createEncryptionContext(pseudorandomKeyBuffer);
+        result.recomputeAesOutput();
+        return result;
+    }
+
+    ref ubyte[umacTagLength] derivePad(ref return PadDerivationContext *padDerivationContext, in ubyte[8] nonce)
+    {
+        import math : max;
+        enum int modForComputingIndex = aesBlockLength / umacTagLength;
+        enum lowBitsMask = cast(ubyte) max(modForComputingIndex - 1, 0);
+
+        static if (lowBitMask != 0)
+            int index = nonce[$ - 1] & lowBitsMask;
+        
+        ubyte[4] tempNonceBytes = nonce[4..8];
+        tempNonceBytes[3] &= ~lowBitsMask; // zero last bits
+
+        // ref uint _uint(ref ubyte[4] bytes) { return (cast(ubyte[1]) bytes.ptr)[0]; }
+
+        if (tempNonceBytes[0..4] != padDerivationContext.nonce[4..8] 
+            || nonce[0..4] != padDerivationContext.nonce[0..4])
+        {
+            padDerivationContext.nonce[0..4] = nonce[0..4];
+            padDerivationContext.nonce[4..8] = tempNonceBytes[0..4];
+            padDerivationContext.recomputeAesOutput();
+        }
+
+        static if (umacTagLength == 4 || umacTagLength == 8)
+        {
+            size_t byteIndex = index * umacTagLength;
+            return padDerivationContext.cachedAesOutput[byteIndex .. byteIndex + umacTagLength][0..umacTagLength];
+        }
+        else
+        {
+            return padDerivationContext.cachedAesOutput[0..umacTagLength];
+        }
+    }
+
+    ubyte[umacTagLength] getTag(in ubyte[aesKeyLength] key, const(ubyte)[] message, PadDerivationContext* context, in ubyte[aesBlockLength] nonce)
+    {
+        auto hashedMessage = uhash(key, message);
+        hashedMessage[] ^= derivePad(context, nonce)[];
+        return hashedMessage;
+    }
+
+    // struct KeyData
+    // {
+    //     ubyte[
+    // }
+    enum l1KeyLength = 1024;
+    enum l2KeyLength = 24;
+    enum l3Key1Length = 64;
+    enum l3Key2Length = 4;
+
+    ubyte[umacTagLength] uhash(ubyte[aesKeyLength] key, const(ubyte)[] message)
+    {
+        // One internal iteration per 4 bytes of output
+        enum numIters = umacTagLength / 4; 
+
+        // Define total key needed for all iterations using KDF.
+        // L1Key reuses most key material between iterations.
+        ubyte[l1KeyLength + (numIters - 1) * 16] l1Key  = void;
+        ubyte[numIters * l2KeyLength]            l2Key  = void;
+        ubyte[numIters * l3Key1Length]           l3Key1 = void;
+        ubyte[numIters * l3Key2Length]           l3Key2 = void;
+
+        auto context = aes.createEncryptionContext(key);
+        deriveKey(l1Key[], context);
+        deriveKey(l2Key[], context);
+        deriveKey(l3Key1[], context);
+        deriveKey(l3Key2[], context);
+
+        ubyte[umacTagLength] result;
+
+        foreach (i; 0..numIters)
+        {
+            size_t l1KeyIndexStart = i * 16;
+            auto A = l1Hash(l1Key[l1KeyIndexStart .. l1KeyIndexStart + l1KeyLength], message);
+
+            import std.traits : ReturnType;
+            ReturnType!l2Hash B = void;
+            if (message.length <= l1KeySliceLength)
+            {
+                B[0..A.length] = A[];
+                B[A.length..$] = 0;
+            }
+            else
+            {
+                size_t l2KeyIndexStart = i * l2KeyLength;
+                B = l2Hash(l2Key[l2KeyIndexStart .. l2KeyIndexStart + l2KeyLength], A);
+            }
+
+            size_t l3Key1IndexStart = i * l3Key1Length;
+            size_t l3Key2IndexStart = i * l3Key2Length;
+            auto C = l3Hash(
+                l3Key1[l3Key1IndexStart .. l3Key1IndexStart + l3Key1Length], 
+                l3Ley2[l3Key2IndexStart .. l3Key2IndexStart + l3Key2Length], B);
+
+            result[i * C.length .. (i + 1) * C.length] = C[];
+        }
+        return result;
+    }
+
+    ubyte[] l1Hash(in ubyte[l1KeyLength] key, const(ubyte)[] message)
+    {
+        auto t = ceilingDivide(message.length, l1KeyLength);
+        ubyte[l1KeyLength] intermediateResult;
+        foreach (i; 0 .. (t - 1))
+        {
+            size_t messageIndexStart = i * l1KeyLength;
+            ubyte[l1KeyLength] chunk = message[messageIndexStart .. messageIndexStart + l1KeyLength];
+            maybeEndianSwap(cast(uint[]) chunk);
+            chunk = nh(key, chunk);
+            chunk = mod64add(chunk, 
+        }
+    }
+
+    ubyte[8] nh(in ubyte[l1KeyLength] key, in ubyte[l1KeyLength] message)
+    {
+        ubyte[8] result;
+        foreach (i; 0 .. l1KeyLength / 4)
+        {
+            result.mod32add(message[i .. i + 4].mod32add(key[i .. i + 4])
+                .mod64mul(message[i + 4 .. i + 8].mod32add(key[i + 4 .. i + 8])));
+        }
     }
 }
 
