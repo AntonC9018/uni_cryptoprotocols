@@ -24,11 +24,11 @@ void fromHexString(ubyte[] output, string source)
 
 int ceilingDivide(int a, int b)
 {
-    return (a + a - 1) / b;
+    return (a + b - 1) / b;
 }
 unittest
 {
-    assert(ceilingDivide(1 / 2) == 1);
+    assert(ceilingDivide(1, 2) == 1);
 }
 
 uint endianSwap(uint a)
