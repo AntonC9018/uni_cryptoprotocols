@@ -4,7 +4,83 @@ import std.range;
 import std.string;
 import std.algorithm;
 import common.util;
+import aes;
 
+void main()
+{
+    import arsd.minigui;
+    auto window = new MainWindow();
+
+    auto selectAlgo = new DropDownSelection(window);
+    selectAlgo.addOption("HMAC (SHA-256)");
+    selectAlgo.addOption("CMAC (AES-256)");
+    selectAlgo.setSelection(0);
+
+    auto macLayout       = new VerticalLayout(window);
+    auto macLabelMessage = new TextLabel("Message", TextAlignment.Right, macLayout);
+    auto macInput        = new TextEdit(macLayout);
+    auto macKey          = new LabeledLineEdit("Key", macLayout);
+    auto macMac          = new LabeledLineEdit("MAC   ", macLayout);
+
+    bool isPrimed = false;
+    ubyte[32] mac;
+
+    string previousAesKey;
+    enum AesKeyLength = 256 / 8;
+    enum AesBlockSize = 16;
+    AESContext!(Yes.encrypt) aesContext;
+    
+    auto doAes(in ubyte[AesBlockSize] input) { return cryptEcb(aesContext, input); }
+    alias AesCMAC = CMAC!doAes;
+    typeof(AesCMAC.getKey()) processedCmacKey;
+
+    enum HMAC = 0;
+    enum CMAC = 1;
+
+    void resetMac()
+    {
+        if (!isPrimed)
+            return;
+        if (selectAlgo.selection == HMAC)
+        {
+            mac = calculateHMAC!(sha256Of, 64)(macKey.content.representation, macInput.content.representation);
+            macMac.content(mac.toHexString!(LetterCase.lower));
+        }
+        else
+        {
+            mac[0..AesBlockSize] = AesCMAC.getTag(processedCmacKey, macInput.content.representation);
+            macMac.content(mac[0..AesBlockSize].toHexString!(LetterCase.lower));
+        }
+    }
+
+    void resetKey()
+    {
+        if (selectAlgo.selection == CMAC)
+        {
+            auto slice = macKey.content[0 .. min($, AesKeyLength)];
+            if (previousAesKey == slice)
+                return;
+            macKey.content(slice);
+            ubyte[AesKeyLength] buffer = 0; 
+            buffer[0..slice.length] = slice.representation[];
+            aesContext = aes.createEncryptionContext(buffer);
+            previousAesKey = slice;
+            processedCmacKey = AesCMAC.getKey();
+        }
+        isPrimed = true;
+    }
+
+
+
+    import std.stdio;
+    macInput.addEventListener(EventType.change, &resetMac);
+    macKey.addEventListener(EventType.change, {
+        resetKey();
+        resetMac();
+    });
+
+	window.loop();
+}
 
 auto calculateHMAC(alias hashFunction, int blockSize)(const(ubyte)[] key, const(ubyte)[] message)
 {
@@ -163,13 +239,4 @@ unittest
     ubyte[4] dest = void;
     shiftLeftInto(source[], dest[]);
     assert(dest[] == [0x01, 0x03, 0x11, 0x00]);
-}
-
-// struct UMAC(size_t aesBlockSize, size_t aesKeyLength)
-// {
-//     ubyte[aesKeyLength] 
-// }
-
-void main()
-{
 }
