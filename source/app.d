@@ -10,30 +10,32 @@ void main()
 {
     import arsd.minigui;
     auto window = new MainWindow();
+    window.title("MAC algorithms showoff");
 
     auto selectAlgo = new DropDownSelection(window);
     enum CMACIndex = 0;
     enum HMACIndex = 1;
     string[2] options = ["CMAC (AES-256)", "HMAC (SHA-256)"];
-    foreach (opt; options) selectAlgo.addOption(opt);
+    foreach (opt; options) 
+        selectAlgo.addOption(opt);
     selectAlgo.setSelection(CMACIndex);
 
     auto macLayout       = new VerticalLayout(window);
-    auto macLabelMessage = new TextLabel("Message", TextAlignment.Right, macLayout);
+    auto macLabelMessage = new TextLabel("Message", TextAlignment.Left, macLayout);
     auto macInput        = new TextEdit(macLayout);
     auto macKey          = new LabeledLineEdit("Key", macLayout);
-    auto macMac          = new LabeledLineEdit("MAC   ", macLayout);
-    auto cmacKey1        = new LabeledLineEdit("CMAC k1     ", macLayout);
-    auto cmacKey2        = new LabeledLineEdit("CMAC k2     ", macLayout);
+    auto macMac          = new LabeledLineEdit("MAC", macLayout);
+    auto cmacKey1        = new LabeledLineEdit("CMAC k1", macLayout);
+    auto cmacKey2        = new LabeledLineEdit("CMAC k2", macLayout);
 
     bool isPrimed = false;
     ubyte[32] macBuffer;
 
     string previousAesKey;
+
     enum AesKeyLength = 256 / 8;
     enum AesBlockSize = 16;
     AESContext!(Yes.encrypt) aesContext;
-    
     auto doAes(in ubyte[AesBlockSize] input) { return cryptEcb(aesContext, input); }
     alias AesCMAC = CMAC!doAes;
     typeof(AesCMAC.getKey()) processedCmacKey;
@@ -43,7 +45,7 @@ void main()
     {
         if (!isPrimed)
             return;
-        if (selectAlgo.selection == HMACIndex)
+        if (selectAlgo.getSelection() == HMACIndex)
         {
             macBuffer = calculateHMAC!(sha256Of, 64)(macKey.content.representation, macInput.content.representation);
             macMac.content(macBuffer.toHexString!(LetterCase.lower));
@@ -57,20 +59,14 @@ void main()
 
     void resetKey()
     {
-        if (selectAlgo.selection == CMACIndex)
+        if (selectAlgo.getSelection() == CMACIndex)
         {
             auto slice = macKey.content[0 .. min($, AesKeyLength)];
+            macKey.content(slice);
             if (previousAesKey == slice)
                 return;
             if (slice.length < AesKeyLength)
-            {
-                isPrimed = false;
-                macMac.content("");
-                cmacKey1.content("");
-                cmacKey2.content("");
-                return;
-            }
-            macKey.content(slice);
+                slice.length = AesKeyLength;
             ubyte[AesKeyLength] buffer = 0; 
             buffer[0..slice.length] = slice.representation[];
             aesContext = aes.createEncryptionContext(buffer);
@@ -95,8 +91,8 @@ void main()
         resetKey();
         resetMac();
 
-        writeln(selectAlgo.selection);
-        if (selectAlgo.selection == CMACIndex)
+        writeln(selectAlgo.getSelection());
+        if (selectAlgo.getSelection() == CMACIndex)
         {
             cmacKey1.show();
             cmacKey2.show();
@@ -188,7 +184,7 @@ template CMAC(alias blockCipher)
         auto numIters = message.length / blockSize;
 
         // complete block
-        if (message.length && message.length % blockSize == 0)
+        if (message.length > 0 && message.length % blockSize == 0)
         {
             mLast[] = key.k1[] ^ message[($ - blockSize) .. $];
             numIters--;
