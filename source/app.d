@@ -12,18 +12,22 @@ void main()
     auto window = new MainWindow();
 
     auto selectAlgo = new DropDownSelection(window);
-    selectAlgo.addOption("HMAC (SHA-256)");
-    selectAlgo.addOption("CMAC (AES-256)");
-    selectAlgo.setSelection(0);
+    enum CMACIndex = 0;
+    enum HMACIndex = 1;
+    string[2] options = ["CMAC (AES-256)", "HMAC (SHA-256)"];
+    foreach (opt; options) selectAlgo.addOption(opt);
+    selectAlgo.setSelection(CMACIndex);
 
     auto macLayout       = new VerticalLayout(window);
     auto macLabelMessage = new TextLabel("Message", TextAlignment.Right, macLayout);
     auto macInput        = new TextEdit(macLayout);
     auto macKey          = new LabeledLineEdit("Key", macLayout);
     auto macMac          = new LabeledLineEdit("MAC   ", macLayout);
+    auto cmacKey1        = new LabeledLineEdit("CMAC k1     ", macLayout);
+    auto cmacKey2        = new LabeledLineEdit("CMAC k2     ", macLayout);
 
     bool isPrimed = false;
-    ubyte[32] mac;
+    ubyte[32] macBuffer;
 
     string previousAesKey;
     enum AesKeyLength = 256 / 8;
@@ -34,49 +38,74 @@ void main()
     alias AesCMAC = CMAC!doAes;
     typeof(AesCMAC.getKey()) processedCmacKey;
 
-    enum HMAC = 0;
-    enum CMAC = 1;
 
     void resetMac()
     {
         if (!isPrimed)
             return;
-        if (selectAlgo.selection == HMAC)
+        if (selectAlgo.selection == HMACIndex)
         {
-            mac = calculateHMAC!(sha256Of, 64)(macKey.content.representation, macInput.content.representation);
-            macMac.content(mac.toHexString!(LetterCase.lower));
+            macBuffer = calculateHMAC!(sha256Of, 64)(macKey.content.representation, macInput.content.representation);
+            macMac.content(macBuffer.toHexString!(LetterCase.lower));
         }
         else
         {
-            mac[0..AesBlockSize] = AesCMAC.getTag(processedCmacKey, macInput.content.representation);
-            macMac.content(mac[0..AesBlockSize].toHexString!(LetterCase.lower));
+            macBuffer[0..AesBlockSize] = AesCMAC.getTag(processedCmacKey, macInput.content.representation);
+            macMac.content(macBuffer[0..AesBlockSize].toHexString!(LetterCase.lower));
         }
     }
 
     void resetKey()
     {
-        if (selectAlgo.selection == CMAC)
+        if (selectAlgo.selection == CMACIndex)
         {
             auto slice = macKey.content[0 .. min($, AesKeyLength)];
             if (previousAesKey == slice)
                 return;
+            if (slice.length < AesKeyLength)
+            {
+                isPrimed = false;
+                macMac.content("");
+                cmacKey1.content("");
+                cmacKey2.content("");
+                return;
+            }
             macKey.content(slice);
             ubyte[AesKeyLength] buffer = 0; 
             buffer[0..slice.length] = slice.representation[];
             aesContext = aes.createEncryptionContext(buffer);
             previousAesKey = slice;
             processedCmacKey = AesCMAC.getKey();
+            cmacKey1.content(processedCmacKey.k1[].toHexString!(LetterCase.lower));
+            cmacKey2.content(processedCmacKey.k2[].toHexString!(LetterCase.lower));
         }
         isPrimed = true;
     }
 
-
-
     import std.stdio;
     macInput.addEventListener(EventType.change, &resetMac);
-    macKey.addEventListener(EventType.change, {
+    macKey.addEventListener(EventType.change, 
+    {
         resetKey();
         resetMac();
+    });
+    selectAlgo.addEventListener(EventType.change, 
+    {
+        isPrimed = false;
+        resetKey();
+        resetMac();
+
+        writeln(selectAlgo.selection);
+        if (selectAlgo.selection == CMACIndex)
+        {
+            cmacKey1.show();
+            cmacKey2.show();
+        }
+        else
+        {
+            cmacKey1.hide();
+            cmacKey2.hide();
+        }
     });
 
 	window.loop();
