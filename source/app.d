@@ -91,7 +91,6 @@ void main()
         resetKey();
         resetMac();
 
-        writeln(selectAlgo.getSelection());
         if (selectAlgo.getSelection() == CMACIndex)
         {
             cmacKey1.show();
