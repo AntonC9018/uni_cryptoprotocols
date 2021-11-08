@@ -16,3 +16,4 @@ uni_graphics-test-*
 bin
 
 t*.d
+.vs

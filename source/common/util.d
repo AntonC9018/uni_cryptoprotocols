@@ -58,4 +58,43 @@ void maybeEndianSwap(uint[] bytesAsInts)
     static if (endian == Endian.bigEndian)
     foreach (ref _uint; bytesAsInts)
         _unit = endianSwap(_uint);
-} 
+}
+
+bool isPowerOfTwo(ulong number)
+{
+    size_t index = 0;
+    while (index < 64)
+        if ((number >> index++) & 1)
+            break;
+    while (index < 64)
+        if ((number >> index++) & 1)
+            return false;
+    return true;
+}
+
+int intLog2(ulong number)
+{
+    int index = 63;
+    while (index >= 0)
+    {
+        if ((number >> index) & 1)
+            return index;
+        index--;
+    }
+    return int.min;
+}
+
+template Resize(NestedArrayType, size_t byFactor)
+{
+    import std.traits;
+    static assert(NestedArrayType.length % byFactor == 0);
+    size_t newLength = NestedArrayType.length / byFactor;
+    alias ArrayType = ElementType!NestedArrayType;
+    alias NewArrayType = ElementType!ArrayType[ArrayType.length * byFactor];
+    alias Resize = NewArrayType[NestedArrayType.length / byFactor]; 
+}
+
+auto resize(size_t byFactor, TNestedArray)(inout TNestedArray array)
+{
+    return cast(Resize!(TNestedArray, byFactor)) array;
+}
