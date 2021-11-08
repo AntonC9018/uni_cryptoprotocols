@@ -8,5 +8,18 @@
 	"name": "uni_cryptoprotocols",
 	"targetPath": "bin",
 	"targetType": "executable",
-	"workingDirectory": "bin"
+	"workingDirectory": "bin",
+	"sourcePaths": ["source/common", "source/arsd"],
+	"configurations": [
+		{
+			"name": "lab1",
+			"sourcePaths": ["source/lab1"],
+			"targetName": "lab1"
+		},
+		{
+			"name": "lab2",
+			"sourceFiles": ["source/lab2.d"],
+			"targetName": "lab2"
+		}
+	]
 }

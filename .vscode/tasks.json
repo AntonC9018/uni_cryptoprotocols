@@ -10,7 +10,8 @@
             ],
             "group": "build",
             "args": [
-                "--build=debug"
+                "--build=debug",
+                "--config=${config:configurationName}"
             ]
         },
         {
@@ -21,7 +22,11 @@
                 "$dmd"
             ],
             "group": "build",
-            "args": ["--build=unittest", "--force"]
+            "args": [
+                "--build=unittest", 
+                "--config=${config:configurationName}", 
+                "--force"
+            ]
         }
     ]
 }
