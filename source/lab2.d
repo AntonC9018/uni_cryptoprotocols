@@ -148,17 +148,19 @@ template Lamport(alias hashFunction)
 
     // bool validateMerkleSignature(in DynamicLamportMerkleSignature merkleSignature, size_t messageIndexInBatch, in ulong[4] merkleTreeRoot)
     // {
-    //     auto publicKeyHash = hashFunction(cast(ubyte[]) merkleSignature.publicKey);
-    //     auto currentHash   = publicKeyHash;
-    //     auto index = messageIndexInBatch;
+    //     alias Info = MerkleTreeInfo!(numAuths + 1, hashFunction);
+    //     auto publicKeyHash    = hashFunction(cast(ubyte[]) merkleSignature.publicKey);
+    //     auto nodeIndexAtLevel = messageIndexInBatch;
+    //     auto currentHash      = publicKeyHash;
         
     //     foreach (const auth; merkleSignature.auths)
     //     {
-    //         typeof(currentHash)[2] buffer = void;
-    //         buffer[index & 1]  = currentHash;
-    //         buffer[~index & 1] = cast(typeof(currentHash)) auth;
-    //         currentHash = hashFunction(buffer); 
-    //         index /= 2;
+    //         Info.THash[2] buffer = void;
+    //         size_t actualIndex = nodeIndexAtLevel + Info.nodeOffsetAtLevel[levelIndex];
+    //         buffer[ actualIndex & 1] = currentHash;
+    //         buffer[~actualIndex & 1] = cast(Info.THash) auth;
+    //         currentHash = hashFunction(buffer);
+    //         nodeIndexAtLevel /= 2;
     //     }
     //     return cast(ulong[4]) currentHash == merkleTreeRoot;
     // }
@@ -170,13 +172,13 @@ unittest
     auto publicKey = Lamp.generatePublicKey(privateKey);
     auto signature = Lamp.generateSignature([1, 2, 3], privateKey);
     assert(Lamp.validateSignature([1, 2, 3], signature, publicKey));
+    auto signature2 = Lamp.generateSignature([3, 2, 1], privateKey);
+    assert(signature != signature2);
 }
 unittest
 {
     alias Lamp = Lamport!sha256Of;
-    ubyte[][32] messages;
-    foreach (ref message; messages)
-        message = "123".representation.dup;
+    ubyte[][32] messages = "1234567890qwertyuiopasdfghjklzxc".representation.dup;
     auto signingContext = Lamp.merkleySigningContext!(messages.length);
     auto rootHash = signingContext.getPublicKey();
     foreach (index, message; messages)
