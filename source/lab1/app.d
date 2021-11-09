@@ -4,7 +4,7 @@ import std.range;
 import std.string;
 import std.algorithm;
 import common.util;
-import aes;
+import common.aes;
 
 void main()
 {
@@ -69,7 +69,7 @@ void main()
                 slice.length = AesKeyLength;
             ubyte[AesKeyLength] buffer = 0; 
             buffer[0..slice.length] = slice.representation[];
-            aesContext = aes.createEncryptionContext(buffer);
+            aesContext = common.aes.createEncryptionContext(buffer);
             previousAesKey = slice;
             processedCmacKey = AesCMAC.getKey();
             cmacKey1.content(processedCmacKey.k1[].toHexString!(LetterCase.lower));
@@ -213,7 +213,7 @@ template CMAC(alias blockCipher)
 }
 unittest
 {
-    import aes;
+    import common.aes;
 
     // Test vectors: https://datatracker.ietf.org/doc/html/rfc4493#section-4
     enum keyBitSize = 128;

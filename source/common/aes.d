@@ -1,5 +1,5 @@
 // https://gist.github.com/vladimirgamalyan/959754248985a62ba7bf7af848f1aaaf
-module aes;
+module common.aes;
 
 private:
 immutable ubyte[256] FSb = [

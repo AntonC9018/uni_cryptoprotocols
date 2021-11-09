@@ -1,19 +1,14 @@
+module lamport;
+
 import std.range;
 import std.algorithm;
 import std.random;
 import std.string;
 import std.stdio;
 import std.traits;
-import common.util;
 import std.digest.sha;
+import common.util;
 
-void main()
-{
-    
-    
-
-    
-}
 
 /// https://www.wikiwand.com/en/Lamport_signature
 alias LamportKey = ulong[4][2][256];

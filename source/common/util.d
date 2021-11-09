@@ -98,3 +98,8 @@ auto resize(size_t byFactor, TNestedArray)(inout TNestedArray array)
 {
     return cast(Resize!(TNestedArray, byFactor)) array;
 }
+
+ref ubyte[8] bytes(ref return ulong number) 
+{ 
+    return (cast(ubyte[])(&number)[0..1])[0..8]; 
+}
