@@ -40,7 +40,7 @@ struct SKID(TDigest, TEncryptionBlockCipher)
     }
 
     /// Step 3: check authentication hash.
-    bool validateHashA(typeof(_digest.finish()) encryptedHash, ulong receivedRandomNumber, const ubyte[] expectedName)
+    bool validateHashA(in typeof(_digest.finish()) encryptedHash, ulong receivedRandomNumber, const ubyte[] expectedName)
     {
         _digest.put(_ownRandomNumber.bytes);
         _digest.put(receivedRandomNumber.bytes);
@@ -57,7 +57,7 @@ struct SKID(TDigest, TEncryptionBlockCipher)
     }
 
     /// Step 5: validate hash of the other party.
-    bool validateHashB(typeof(_digest.finish()) encryptedHash, const ubyte[] expectedName)
+    bool validateHashB(in typeof(_digest.finish()) encryptedHash, const ubyte[] expectedName)
     {
         _digest.put(_ownRandomNumber.bytes);
         _digest.put(expectedName);
