@@ -15,7 +15,8 @@ Leave a star as a way to say "Thank you". Enjoy!
 
 1. `git clone https://github.com/AntonC9018/uni_cryptoprotocols`
 2. Install DMD from [here](https://dlang.org/download.html). Be sure to add D binaries in path (you'll be asked on installation).
-3. ~~To run a specific lab, do `dub run --config=labX`, where X is the number of the lab.~~
+3. To run a specific lab, do `dub --config=labX`, where X is the number of the lab.
+4. To run tests, do `dub --config=labX --build=unittest`.
 
 ## Debugging
 
