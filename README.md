@@ -23,3 +23,4 @@ Leave a star as a way to say "Thank you". Enjoy!
 Also you can build and run in VSCode by hitting F5. 
 - For this though you will need to install the [C/C++ extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). 
 - To be able to set breakpoints, enable the setting "Allow breakpoints everywhere".
+- Select which lab to run by modifying `.vscode/settings.json`.
