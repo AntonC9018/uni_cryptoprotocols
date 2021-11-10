@@ -15,6 +15,12 @@ import lamport;
 import arsd.minigui;
 
 
+class BButton : Button
+{
+    this(string title, Widget container) { super(title, container); }
+    override int maxHeight() { return 30; }
+}
+
 struct VerticalList
 {
     TextLabel label;
@@ -66,7 +72,7 @@ struct LamportPage
     LabeledLineEdit messageField;
     LabeledLineEdit messageHashField;
     LabeledLineEdit messageHashBitsField;
-    Button regenerateKeysButton;
+    BButton regenerateKeysButton;
     VerticalList privateKeyGrid;
     VerticalList publicKeyGrid;
     VerticalList signatureGrid;
@@ -122,20 +128,17 @@ struct LamportPage
         messageField         = new LabeledLineEdit("Message", lamportPage);
         messageHashField     = new LabeledLineEdit("Message Hash", lamportPage);
         messageHashBitsField = new LabeledLineEdit("Message Hash Bits", lamportPage);
-        regenerateKeysButton = new Button("Regenerate Keys", lamportPage);
+        regenerateKeysButton = new BButton("Regenerate Keys", lamportPage);
 
-        signatureGrid  = verticalList("Signature", numShownNumbers, 1, lamportPage);
-        privateKeyGrid = verticalList("Private Key", numShownNumbers, 2, lamportPage);
-        publicKeyGrid  = verticalList("Public Key", numShownNumbers, 2, lamportPage);
+        signatureGrid  = verticalList("Signature (the first %d numbers)".format(numShownNumbers), numShownNumbers, 1, lamportPage);
+        privateKeyGrid = verticalList("Private Key (the first %d*2 numbers)".format(numShownNumbers), numShownNumbers, 2, lamportPage);
+        publicKeyGrid  = verticalList("Public Key (the first %d*2 hashes)".format(numShownNumbers), numShownNumbers, 2, lamportPage);
 
         messageField.addEventListener(EventType.change, &regenerateSignature);
-        regenerateKeysButton.addEventListener((ClickEvent ev) 
+        regenerateKeysButton.addEventListener(EventType.triggered,
         { 
-            if (ev.button == MouseButton.left)
-            {
-                regenerateKeys(); 
-                regenerateSignature();
-            }
+            regenerateKeys(); 
+            regenerateSignature();
         });
         regenerateKeys();
         regenerateSignature();
@@ -153,11 +156,28 @@ struct SkidPage
     // View
     // ScrollableContainerWidget container;
     LabeledLineEdit aesKey;
-    Button regenerateRandomNumbers;
+    BButton regenerateRandomNumbers;
     TableView stepsContainer;
 
     // Model
     SKID!(MD5, AESWrapper)[2] contexts;
+    struct TableModel
+    {
+        string number;
+        string hash;
+        string validated;
+    }
+    TableModel[2] tableModels;
+    string[3] getTableColumn(int column)
+    {
+        with (tableModels[column])
+        {
+            if (column == 0)
+                return [number, validated, hash];
+            else
+                return [number, hash, validated];
+        }
+    }
 
     void resetAesKey()
     {
@@ -180,11 +200,28 @@ struct SkidPage
             context._ownRandomNumber = uniform!ulong;
     }
 
+    void updateModels()
+    {
+        foreach (i; 0..2)
+            tableModels[i].number = format("0x%016x", contexts[i]._ownRandomNumber);
+        
+        auto hash0 = contexts[1].computeHashA(contexts[0]._ownRandomNumber);
+        auto hash1 = contexts[0].computeHashB(contexts[1]._ownRandomNumber);
+
+        tableModels[1].hash = hash0.toHexString!(LetterCase.lower).idup;
+        tableModels[1].validated = contexts[1].validateHashB(hash1, contexts[0]._ownName)
+            ? "Validated" : "Not validated";
+
+        tableModels[0].hash = hash1.toHexString!(LetterCase.lower).idup;
+        tableModels[0].validated = contexts[0].validateHashA(hash0, contexts[1]._ownRandomNumber, contexts[1]._ownName)
+            ? "Validated" : "Not validated";
+    }
+
     this(TabWidgetPage parent)
     {
         auto container = parent;
         aesKey = new LabeledLineEdit("AES key", container);
-        regenerateRandomNumbers = new Button("Regenerate random numbers", container);
+        regenerateRandomNumbers = new BButton("Regenerate random numbers", container);
         stepsContainer = new TableView(container);
 
         contexts[0]._digest = MD5();
@@ -193,74 +230,48 @@ struct SkidPage
         contexts[1]._ownName = "Bob".representation;
 
         stepsContainer.setColumnInfo([
-            TableView.ColumnInfo("Step", 100, TextAlignment.Center),
+            TableView.ColumnInfo("Step", 150, TextAlignment.Center),
             TableView.ColumnInfo("Alice", 150, TextAlignment.Center),
             TableView.ColumnInfo("Bob", 150, TextAlignment.Center)
         ]);
-        stepsContainer.setItemCount(3);
+
         stepsContainer.getData = delegate (int row, int column, scope void delegate(in char[]) sink) 
         {
-            writeln("Called ", row, " ", column);
             if (column == 0)
             {
                 static immutable StepStrings = [
-                    "1: number exchange",
+                    "1: Number exchange",
                     "2: Alice validates Bob",
                     "3: Bob validates Alice"
                 ];
                 return sink(StepStrings[row]);
             }
-            // random numbers
-            if (row == 0)
-            {
-                sink(format("0x%016x", contexts[column]._ownRandomNumber));
-            }
-            // hash
-            else if (row == 1)
-            {
-                auto hash = contexts[1].computeHashA(contexts[0]._ownRandomNumber); 
-
-                if (column == 1)
-                    sink(hash.toHexString!(LetterCase.lower));
-                else
-                    sink(contexts[0].validateHashA(hash, contexts[1]._ownRandomNumber, contexts[1]._ownName) 
-                        ? "Validated" : "Not validated");
-            }
-            else if (row == 2)
-            {
-                auto hash = contexts[0].computeHashB(contexts[1]._ownRandomNumber); 
-
-                // This is going to be the same, 
-                if (column == 0)
-                    sink(hash.toHexString!(LetterCase.lower));
-                else
-                    sink(contexts[1].validateHashB(hash, contexts[0]._ownName) 
-                        ? "Validated" : "Not validated");
-            }
+            column--;
+            sink(getTableColumn(column)[row]);
         };
+        stepsContainer.setItemCount(3);
 
         aesKey.addEventListener(EventType.change, 
         {
             resetAesKey();
-            // stepsContainer.update(); 
+            updateModels();
+            stepsContainer.update();
         });
 
-        regenerateRandomNumbers.addEventListener((ClickEvent ev)
+        regenerateRandomNumbers.addEventListener(EventType.triggered,
         {
-            if (ev.button == MouseButton.left)
-            {
-                resetRandomNumbers();
-                // stepsContainer.update(); 
-            }
+            resetRandomNumbers();
+            updateModels();
+            stepsContainer.update();
         });
 
         resetAesKey();
         resetRandomNumbers();
-        // stepsContainer.update(); 
+        updateModels();
     }
 }
 
-void main(string[] args)
+void main()
 {
     auto window = new MainWindow();
     window.title("Authorization protocols showoff");
@@ -269,11 +280,10 @@ void main(string[] args)
     auto lamportPage = new LamportPage(tabs.addPage("Lamport"));
     auto skidPage = new SkidPage(tabs.addPage("Skid"));
     
-    
     window.addEventListener((KeyDownEvent ev) 
     {
         if (ev.key == Key.Escape)
             window.close();
     });
-	window.loop();
+    window.loop();
 }

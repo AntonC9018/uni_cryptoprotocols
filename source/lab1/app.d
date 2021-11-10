@@ -103,7 +103,7 @@ void main()
         }
     });
 
-	window.loop();
+    window.loop();
 }
 
 auto calculateHMAC(alias hashFunction, int blockSize)(const(ubyte)[] key, const(ubyte)[] message)
