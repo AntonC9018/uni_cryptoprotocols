@@ -20,9 +20,6 @@ struct SKID(TDigest, TEncryptionBlockCipher)
     ulong _ownRandomNumber;
     const(ubyte)[] _ownName;
 
-    // pragma(msg, ReturnType!(_blockCipher.encrypt).stringof);
-    // pragma(msg, ReturnType!(_digest.finish).stringof);
-
     static assert(__traits(compiles, _blockCipher.encrypt(_digest.finish())), 
         "The block sizes of the hash and the block cipher need to match");
 
