@@ -20,6 +20,11 @@
 			"name": "lab2",
 			"sourcePaths": ["source/lab2"],
 			"targetName": "lab2"
+		},
+		{
+			"name": "fiatshamir",
+			"sourceFiles": ["source/fiatshamir.d"],
+			"targetName": "fiatshamir"
 		}
 	]
 }
