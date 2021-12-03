@@ -25,6 +25,11 @@
 			"name": "fiatshamir",
 			"sourceFiles": ["source/fiatshamir.d"],
 			"targetName": "fiatshamir"
+		},
+		{
+			"name": "establish_key",
+			"sourceFiles": ["source/establish_key.d"],
+			"targetName": "establish_key"
 		}
 	]
 }
