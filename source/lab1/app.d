@@ -167,12 +167,12 @@ template CMAC(alias blockCipher)
         ubyte[blockSize] k1 = void;
         shiftLeftInto(k0[], k1[]);
         if (k0[0] & 0x80)
-            k1[15] ^= c;
+            k1[$ - 1] ^= c;
 
         ubyte[blockSize] k2 = void;
         shiftLeftInto(k1[], k2[]);
         if (k1[0] & 0x80)
-            k2[15] ^= c;
+            k2[$ - 1] ^= c;
 
         return KeyCMAC!blockSize(k1, k2);
     }
